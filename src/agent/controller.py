@@ -1,5 +1,5 @@
 import json
-
+import websockets
 
 async def add_player(ws, player_id):
     '''
@@ -23,7 +23,10 @@ async def _place_order(ws, player_id, suit, price, is_bid):
     '''
     place_json = {"type": "place_order", "data": {
         "player_id": player_id, "is_bid": is_bid, "suit": suit, "price": price}}
-    await ws.send(json.dumps(place_json))
+    try:
+        await ws.send(json.dumps(place_json))
+    except websockets.exceptions.ConnectionClosed:
+        print("⚠️ WebSocket connection closed while placing an order.")
 
 
 async def place_bid(ws, player_id, suit, price):
