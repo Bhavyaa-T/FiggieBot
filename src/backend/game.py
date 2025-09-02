@@ -86,7 +86,7 @@ async def start_round():
 
     goal_suit = SUITS[random.randint(0, 3)]
     deal_cards()
-    Timer(240)
+    Timer(120)
     enough_money = True
     for player in players.values():
         if player.balance < 50:

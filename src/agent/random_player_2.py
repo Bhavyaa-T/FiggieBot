@@ -18,7 +18,7 @@ uri = "ws://127.0.0.1:8000/ws"
 
 class RandomPlayer:
     def __init__(self, bid_low, bid_high, offer_low, offer_high, start_round):
-        self.player_id = "Random Player"
+        self.player_id = "Random Player 2"
         self.bid_low = bid_low
         self.bid_high = bid_high
         self.offer_low = offer_low
@@ -83,7 +83,7 @@ class RandomPlayer:
 
 # === Run the bot ===
 random_player = RandomPlayer(
-    bid_low=1, bid_high=10, offer_low=5, offer_high=15, start_round=False
+    bid_low=1, bid_high=10, offer_low=5, offer_high=15, start_round=True
 )
 
 asyncio.get_event_loop().run_until_complete(random_player.run())

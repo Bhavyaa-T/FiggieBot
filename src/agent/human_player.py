@@ -196,5 +196,5 @@ class HumanPlayer:
                 await self.run_cmd(websocket, cmd)
 
 
-human_player = HumanPlayer(start_round=False)
+human_player = HumanPlayer(start_round=True)
 asyncio.get_event_loop().run_until_complete(human_player.run())
