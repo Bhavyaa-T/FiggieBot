@@ -3,15 +3,18 @@ import asyncio
 import websockets
 import controller
 import random
-import pretty_printer as pp
 import sys
 sys.path.insert(0, "../")
 from util import constants
+import pretty_printer as pp
 # fmt: on
 
-'''
-A player that places random bids in the range [bid_low, bid_high], and random offers in the range [offer_low, offer_high]
-'''
+"""
+RandomPlayer:
+- Posts random bids/offers
+- Accepts at most one bid and one offer per tick
+- Clean handling of update_game, place_order, and error messages
+"""
 
 uri = "ws://127.0.0.1:8000/ws"
 
@@ -41,39 +44,68 @@ class RandomPlayer:
 
                 while True:
                     game_state = await controller.get_game_update(websocket)
+                    msg_type = game_state.get("type")
+
                     pp.print_state(game_state)
+            
+                    # === Handle update_game messages ===
+                    if msg_type == "update_game":
+                        data = game_state["data"]
+                        order_book = data.get("order_book", {})
+                        player_state = data["player"]
 
-                    # === ROUND END CHECK ===
-                    time_left = game_state["data"].get("time", None)
 
-                    if time_left == 0:
-                        print("\n🟩 ROUND ENDED")
-                        player = game_state["data"]["player"]
-                        print(f"💰 Final Balance: {player['balance']}")
-                        print(f"🃏 Final Hand: {player['hand']}")
-                        break
+                        # ROUND END CHECK
+                        time_left = data.get("time", None)
+                        if time_left == 0:
+                            print("\n🟩 ROUND ENDED")
+                            print(f"💰 Final Balance: {player_state['balance']}")
+                            print(f"🃏 Final Hand: {player_state['hand']}")
+                            break
 
-                    # 🕒 Show time remaining
-                    if time_left is not None:
-                        print(f"⏳ Time remaining: {time_left} seconds")
+                        if time_left is not None:
+                            print(f"⏳ Time remaining: {time_left} seconds")
 
-                    # === RANDOM ACTION ===
-                    if random.random() > 0.5:
-                        await controller.place_bid(
-                            websocket,
-                            self.player_id,
-                            suit=random.choice(constants.SUITS),
-                            price=random.randint(self.bid_low, self.bid_high),
-                        )
-                    else:
-                        await controller.place_offer(
-                            websocket,
-                            self.player_id,
-                            suit=random.choice(constants.SUITS),
-                            price=random.randint(self.offer_low, self.offer_high),
-                        )
+                        # === PLACE RANDOM BID / OFFER ===
+                        if random.random() > 0.5:
+                            suit = random.choice(constants.SUITS)
+                            price = random.randint(self.bid_low, self.bid_high)
+                            print(f"🟢 Placing bid: {suit} @ {price}")
+                            await controller.place_bid(
+                                websocket, self.player_id, suit=suit, price=price
+                            )
+                        else:
+                            suit = random.choice(constants.SUITS)
+                            price = random.randint(self.offer_low, self.offer_high)
+                            print(f"🔴 Placing offer: {suit} @ {price}")
+                            await controller.place_offer(
+                                websocket, self.player_id, suit=suit, price=price
+                            )
 
-                    await asyncio.sleep(1)
+                        # === ACCEPT ONE BID & ONE OFFER PER TICK ===
+                        if order_book:
+                            # Accept one bid (sell if we have the card)
+                            for suit, bid in order_book.get("bids", {}).items():
+                                if bid["order_id"] != -1 and bid["player_id"] != self.player_id:
+                                    if player_state["hand"].get(suit, 0) > 0:
+                                        print(f"✅ Selling {suit} @ {bid['price']} to {bid['player_id']}")
+                                        await controller.accept_bid(
+                                            websocket, self.player_id, suit=suit
+                                        )
+                                        break  # stop after first accept
+
+                            # Accept one offer (buy if we can afford it)
+                            for suit, offer in order_book.get("offers", {}).items():
+                                if offer["order_id"] != -1 and offer["player_id"] != self.player_id:
+                                    if player_state["balance"] >= offer["price"]:
+                                        print(f"✅ Buying {suit} @ {offer['price']} from {offer['player_id']}")
+                                        await controller.accept_offer(
+                                            websocket, self.player_id, suit=suit
+                                        )
+                                        break  # stop after first accept
+
+                        await asyncio.sleep(1)
+
 
         except websockets.exceptions.ConnectionClosed:
             print("⚠️ WebSocket connection closed unexpectedly.")
@@ -82,8 +114,8 @@ class RandomPlayer:
 
 
 # === Run the bot ===
-random_player = RandomPlayer(
-    bid_low=1, bid_high=10, offer_low=5, offer_high=15, start_round=True
-)
-
-asyncio.get_event_loop().run_until_complete(random_player.run())
+if __name__ == "__main__":
+    random_player = RandomPlayer(
+        bid_low=1, bid_high=10, offer_low=5, offer_high=15, start_round=True
+    )
+    asyncio.run(random_player.run())
